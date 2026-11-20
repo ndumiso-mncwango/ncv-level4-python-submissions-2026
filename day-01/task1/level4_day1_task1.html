@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>The Results Desk: Python Lists vs. Dictionaries</title>
+  <style>
+    body { font-family: system-ui, sans-serif; background: #f4f6f9; color: #1e293b; padding: 20px; line-height: 1.5; }
+    .wrap { max-width: 920px; margin: 0 auto; }
+    .card { background: #fff; padding: 20px; border-radius: 10px; box-shadow: 0 2px 6px rgba(0,0,0,.06); margin-bottom: 20px; }
+    h1, h2 { margin-top: 0; color: #1d4ed8; }
+    .tabs { display: flex; gap: 8px; margin-bottom: 12px; }
+    .tab { flex: 1; padding: 10px; border: 2px solid #cbd5e1; background: #f8fafc; border-radius: 8px; font-weight: 600; cursor: pointer; }
+    .tab.active { border-color: #1d4ed8; background: #eff6ff; color: #1d4ed8; }
+    .queue { background: #f8fafc; padding: 10px; border-radius: 8px; border: 1px solid #cbd5e1; margin-bottom: 12px; display: flex; gap: 8px; align-items: center; }
+    .badge { padding: 3px 9px; border-radius: 5px; background: #e2e8f0; font-weight: 700; }
+    .badge.curr { background: #d97706; color: #fff; }
+    .badge.done { background: #dcfce7; color: #15803d; text-decoration: line-through; }
+    .grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px; margin: 14px 0; }
+    .box { aspect-ratio: 3/4; border: 2px solid #cbd5e1; border-radius: 8px; background: #475569; color: #fff; display: flex; flex-direction: column; align-items: center; justify-content: center; font-weight: 700; cursor: pointer; text-align: center; }
+    .box.next { border: 3px solid #d97706; }
+    .box.open { background: #eff6ff; color: #1e293b; border-color: #1d4ed8; }
+    .box.post { background: #fffbeb; color: #92400e; border-color: #d97706; }
+    .box.hit { background: #dcfce7; color: #15803d; border-color: #15803d; }
+    textarea { width: 100%; height: 180px; background: #0f172a; color: #f8fafc; font-family: monospace; font-size: 14px; padding: 12px; border-radius: 8px; box-sizing: border-box; }
+    pre { background: #1e293b; color: #bbf7d0; padding: 12px; border-radius: 8px; font-family: monospace; white-space: pre-wrap; margin-top: 8px; }
+    pre.err { color: #fecaca; }
+    button.btn { background: #1d4ed8; color: #fff; border: none; padding: 8px 14px; border-radius: 6px; font-weight: 600; cursor: pointer; margin-top: 8px; }
+    button.run { background: #15803d; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="card">
+      <h1>🏫 The Results Desk: Lists vs. Dictionaries</h1>
+      <p><strong>1 check</strong> = looking at one student number or opening one post box. Compare <strong>List (Linear Search)</strong> with <strong>Dictionary (Post Boxes)</strong>.</p>
+      <div class="tabs">
+        <button class="tab active" id="t-list">A · List (Linear Search)</button>
+        <button class="tab" id="t-dict">B · Dictionary (Post Boxes)</button>
+      </div>
+      <div class="queue">
+        <strong>Queue:</strong>
+        <span class="badge curr" id="q0">1093</span>
+        <span class="badge" id="q1">1050</span>
+        <span class="badge" id="q2">1007</span>
+        <span style="margin-left:auto">Checks: <strong id="cnt">0</strong></span>
+      </div>
+      <p id="msg" style="font-weight:600;color:#1d4ed8"></p>
+      <div class="grid" id="cards"></div>
+      <button class="btn" id="rst">Reset Queue</button>
+    </div>
+
+    <div class="card">
+      <h2>🐍 Live Python Lab: Safe Lookup Challenge</h2>
+      <p>The code below crashes with a <code>KeyError</code> when student <code>9999</code> is missing. Fix <code>get_status</code> using <code>.get()</code> so missing IDs return <code>"Not found"</code>.</p>
+      <textarea id="ed"></textarea>
+      <button class="btn run" id="run">▶ Run & Test</button>
+      <pre id="out">Click "▶ Run & Test"...</pre>
+    </div>
+  </div>
+
+  <script>
+    const data = [
+      { id: 1041, m: 56 }, { id: 1007, m: 72 }, { id: 1093, m: 38 },
+      { id: 1022, m: 91 }, { id: 1065, m: 64 }, { id: 1050, m: 47 }
+    ];
+    const q = [1093, 1050, 1007];
+    let mode = 'list', qi = 0, li = 0, checks = 0, seen = new Set(), hit = null, customMsg = null;
+
+    function render() {
+      q.forEach((id, i) => {
+        const b = document.getElementById('q' + i);
+        b.className = 'badge' + (i < qi ? ' done' : i === qi ? ' curr' : '');
+      });
+      document.getElementById('cnt').textContent = checks;
+
+      const msg = document.getElementById('msg');
+      if (customMsg) {
+        msg.textContent = customMsg;
+        msg.style.color = '#dc2626';
+        customMsg = null;
+      } else {
+        msg.style.color = '#1d4ed8';
+        msg.textContent = qi >= q.length
+          ? '✅ Done in ' + checks + ' checks! Switch modes to compare.'
+          : (mode === 'list'
+              ? 'Learner ' + q[qi] + ': click the highlighted card.'
+              : 'Learner ' + q[qi] + ': click Box ' + q[qi] + ' directly!');
+      }
+
+      const grid = document.getElementById('cards');
+      grid.innerHTML = '';
+      data.forEach((r, i) => {
+        const d = document.createElement('div');
+        d.className = 'box';
+        if (mode === 'list') {
+          if (hit === i) {
+            d.classList.add('hit');
+            d.innerHTML = r.id + '<br><small>Mark ' + r.m + '</small>';
+          } else if (seen.has(i)) {
+            d.classList.add('open');
+            d.innerHTML = r.id + '<br><small>No</small>';
+          } else {
+            if (qi < q.length && i === li && hit === null) d.classList.add('next');
+            d.innerHTML = '?<br><small>Pos ' + (i + 1) + '</small>';
+          }
+        } else {
+          d.classList.add(hit === i ? 'hit' : 'post');
+          d.innerHTML = hit === i ? r.id + '<br><small>Mark ' + r.m + '</small>' : 'Box ' + r.id;
+        }
+
+        d.addEventListener('click', () => {
+          if (qi >= q.length || hit !== null) return;
+          if (mode === 'list' && i !== li) return;
+
+          checks++;
+          if (mode === 'list') seen.add(i);
+
+          if (r.id === q[qi]) {
+            hit = i;
+            render();
+            setTimeout(() => {
+              qi++;
+              li = 0;
+              seen.clear();
+              hit = null;
+              render();
+            }, 600);
+          } else {
+            if (mode === 'list') {
+              li++;
+            } else {
+              customMsg = '❌ Wrong box! Click Box ' + q[qi];
+            }
+            render();
+          }
+        });
+        grid.appendChild(d);
+      });
+    }
+
+    document.getElementById('t-list').addEventListener('click', () => {
+      mode = 'list';
+      document.getElementById('t-list').classList.add('active');
+      document.getElementById('t-dict').classList.remove('active');
+      document.getElementById('rst').click();
+    });
+
+    document.getElementById('t-dict').addEventListener('click', () => {
+      mode = 'dict';
+      document.getElementById('t-dict').classList.add('active');
+      document.getElementById('t-list').classList.remove('active');
+      document.getElementById('rst').click();
+    });
+
+    document.getElementById('rst').addEventListener('click', () => {
+      qi = 0; li = 0; checks = 0; seen.clear(); hit = null; customMsg = null;
+      render();
+    });
+
+    render();
+
+    document.getElementById('ed').value = [
+      'results = {1041: 56, 1007: 72, 1093: 38, 1050: 47}',
+      '',
+      'def get_status(sid):',
+      '    # Fix KeyError using results.get(sid)',
+      '    mark = results[sid]',
+      '    if mark >= 50:',
+      '        return "Pass"',
+      '    return "Fail"',
+      '',
+      'assert get_status(1041) == "Pass"',
+      'assert get_status(1093) == "Fail"',
+      'assert get_status(9999) == "Not found"',
+      'print("✅ All tests passed!")'
+    ].join('\n');
+
+    document.getElementById('run').addEventListener('click', () => {
+      const out = document.getElementById('out');
+      out.className = '';
+      const logs = [];
+
+      const wrap = o => new Proxy(o, {
+        get(t, p) {
+          if (p === 'get') {
+            return (k, d = null) => Object.prototype.hasOwnProperty.call(t, String(k))
+              ? Reflect.get(t, String(k))
+              : d;
+          }
+          if (!Object.prototype.hasOwnProperty.call(t, String(p))) {
+            throw new Error('KeyError: ' + String(p));
+          }
+          return Reflect.get(t, String(p));
+        }
+      });
+
+      try {
+        let js = document.getElementById('ed').value
+          .replace(/#.*$/gm, '')
+          .replace(/\{([^{}]+)\}/g, '_w({$1})')
+          .replace(/\bNone\b/g, 'null')
+          .replace(/\bTrue\b/g, 'true')
+          .replace(/\bFalse\b/g, 'false')
+          .replace(/\bis\s+not\b/g, '!==')
+          .replace(/\bis\b/g, '===')
+          .replace(/==/g, '===')
+          .replace(/!=/g, '!==')
+          .replace(/^(\s*)def\s+(\w+\([^)]*\))\s*:/gm, '$1function $2 {')
+          .replace(/^(\s*)elif\s+(.+)\s*:/gm, '$1else if ($2) {')
+          .replace(/^(\s*)if\s+(.+)\s*:/gm, '$1if ($2) {')
+          .replace(/^(\s*)else\s*:/gm, '$1else {')
+          .replace(/^(\s*)assert\s+(.+)/gm, '$1_a($2);');
+
+        const lines = js.split('\n').filter(l => l.trim());
+        const outJs = [], stk = [0];
+        const declared = new Set();
+
+        lines.forEach(l => {
+          const ind = l.search(/\S/);
+          while (ind < stk[stk.length - 1]) {
+            stk.pop();
+            outJs.push('}');
+          }
+          let trimmed = l.trim();
+          const assignMatch = trimmed.match(/^([a-zA-Z_]\w*)\s*=(?!=)/);
+          if (assignMatch && !declared.has(assignMatch[1])) {
+            declared.add(assignMatch[1]);
+            trimmed = 'let ' + trimmed;
+          }
+          if (!trimmed.endsWith('{') && !trimmed.endsWith(';')) {
+            trimmed += ';';
+          }
+          outJs.push(trimmed);
+          if (trimmed.endsWith('{')) {
+            stk.push(ind + 4);
+          }
+        });
+
+        while (stk.length > 1) {
+          stk.pop();
+          outJs.push('}');
+        }
+
+        new Function('print', '_a', '_w', outJs.join('\n'))(
+          (...a) => logs.push(a.join(' ')),
+          c => { if (!c) throw new Error('AssertionError'); },
+          wrap
+        );
+        out.textContent = logs.join('\n') || '✅ Ran with no output';
+      } catch (e) {
+        out.className = 'err';
+        out.textContent = '❌ ' + e.message;
+      }
+    });
+  </script>
+</body>
+</html>
